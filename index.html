@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ef">
+  <title>SIMULADOR VON THÜNEN V1.1 — Mercado Urbano y Red Vial</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="js/model.js" defer></script>
+  <script src="js/app.js" defer></script>
+  <script src="js/map-algebra.js" defer></script>
+  <script src="js/map-interpretation.js" defer></script>
+  <script src="js/territorial-regulation.js" defer></script>
+  <script src="js/territorial-app.js" defer></script>
+  <script src="js/territorial-governance.js" defer></script>
+  <script src="js/territorial-suitability-model.js" defer></script>
+  <script src="js/territorial-suitability-app.js" defer></script>
+  <script src="js/economic-land-valuation-model.js" defer></script>
+  <script src="js/economic-land-valuation-app.js" defer></script>
+  <script src="js/land-valuation-plusvalia-model.js" defer></script>
+  <script src="js/land-valuation-plusvalia-app.js" defer></script>
+  <script src="js/municipal-geometry.js" defer></script>
+  <script src="js/municipal-app.js" defer></script>
+  <script src="js/urban-market-rings-model.js" defer></script>
+  <script src="js/urban-market-rings-app.js" defer></script>
+  <script src="js/road-network-catalog.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Von Thünen, inicio">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 36 36" fill="none">
+            <circle cx="18" cy="18" r="15" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="18" cy="18" r="10" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="18" cy="18" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="18" cy="18" r="1.8" fill="currentColor"/>
+          </svg>
+        </span>
+        <span class="brand-name">campo<span>/</span>centro</span>
+      </a>
+      <div class="topbar-right">
+        <span class="version-pill">SIMULADOR <b>V1.1</b></span>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <span class="model-label"><span class="status-dot"></span> Modelo activo</span>
+      </div>
+    </header>
+
+    <section class="intro">
+      <div class="intro-copy">
+        <p class="eyebrow"><span class="eyebrow-line"></span> ECONOMÍA ESPACIAL · ORDENAMIENTO TERRITORIAL COLOMBIANO</p>
+        <h1>La distancia<br>también <span>produce.</span></h1>
+        <p class="intro-description">Explora cómo la distancia y el transporte organizan las actividades agrícolas, celda por celda, alrededor de un mercado central.</p>
+      </div>
+      <aside class="formula-card" aria-label="Fórmula de renta de localización">
+        <span class="formula-kicker">RENTA DE LOCALIZACIÓN</span>
+        <span class="formula">R <i>=</i> A <i>−</i> t · d</span>
+        <span class="formula-caption">ingreso neto por hectárea</span>
+      </aside>
+    </section>
+
+    <section class="municipal-lab panel" aria-labelledby="municipal-title">
+      <div class="panel-heading raster-heading">
+        <div>
+          <p class="section-index">05 <span>/</span> EXPLORADOR TERRITORIAL DE COLOMBIA</p>
+          <h2 id="municipal-title">Experimenta sobre un municipio real</h2>
+          <p class="raster-intro">Carga un límite municipal del MGN DANE 2025 o un GeoJSON propio. La geometría define la máscara raster; solo sus celdas interiores participan en la distancia y las rentas.</p>
+        </div>
+        <span class="demo-badge">MGN · FUENTE OFICIAL</span>
+      </div>
+
+      <div class="municipal-source-note" role="note">
+        <b>Alcance de los datos:</b> El MGN proporciona la geometría geoestadística, no el límite jurídico ni las normas del POT. Esta versión no cuenta con capas georreferenciadas de suelo, clima, MAT, MVES o POT: se identifican como datos no disponibles y no se rellenan con las superficies sintéticas del laboratorio demostrativo.
+        <a href="https://geoportal.dane.gov.co/mparcgis/rest/services/MGN2025/Serv_CapasMGN_2025/MapServer/317" target="_blank" rel="noopener noreferrer">Consultar capa municipal DANE (ID 317)</a>
+      </div>
+
+      <div class="municipal-picker">
+        <label for="municipal-search">Buscar por municipio o código DIVIPOLA
+          <input id="municipal-search" type="search" autocomplete="off" placeholder="Ej.: Chaparral o 73168">
+        </label>
+        <label for="municipal-department">Departamento
+          <select id="municipal-department" disabled><option value="">Cargando lista desde el MGN…</option></select>
+        </label>
+        <label for="municipal-city">Municipio
+          <select id="municipal-city" disabled><option value="">Selecciona un departamento</option></select>
+        </label>
+        <button type="button" class="secondary-button" id="municipal-load" disabled>Cargar municipio</button>
+        <label class="file-button">Cargar GeoJSON municipal<input id="municipal-file" type="file" accept=".geojson,.json,application/geo+json,application/json"></label>
+        <button type="button" class="secondary-button" id="municipal-clear" disabled>Volver al escenario general</button>
+      </div>
+      <p class="file-status" id="municipal-status" role="status" aria-live="polite">Conectando con el servicio del DANE. Si no está disponible, puedes cargar un archivo GeoJSON municipal.</p>
+      <button type="button" class="secondary-button municipal-retry-button" id="municipal-retry" hidden>Reintentar consulta DANE</button>
+
+      <div class="municipal-workspace" id="municipal-workspace" hidden>
+        <div class="municipal-map-column">
+          <div class="municipal-map-toolbar">
+            <label for="municipal-layer">Capa cartográfica
+              <select id="municipal-layer">
+                <option value="specialization">Dominio económico por celda</option>
+                <option value="economic-rings">Zonas económicas y anillos</option>
+                <option value="distance-rings">Anillos de distancia</option>
+                <option value="distance">Distancia al mercado</option>
+                <option value="transport">Costo de transporte</option>
+                <option value="rent">Renta de localización</option>
+                <option value="aptitude">Aptitud MAT · no disponible</option>
+                <option value="value">Valor MVES · no disponible</option>
+                <option value="regulation">POT · no disponible</option>
+              </select>
+            </label>
+            <label for="municipal-activity">Actividad
+              <select id="municipal-activity">
+                <option value="0">Horticultura</option>
+                <option value="1">Producción lechera</option>
+                <option value="2">Cultivos de cereales</option>
+                <option value="3">Ganadería extensiva</option>
+              </select>
+            </label>
+            <label for="municipal-resolution">Resolución
+              <select id="municipal-resolution">
+                <option value="auto">Automática · ~10.000 celdas</option>
+                <option value="100">100 m</option>
+                <option value="250">250 m</option>
+                <option value="500">500 m</option>
+                <option value="1000">1.000 m</option>
+                <option value="2500">2.500 m</option>
+                <option value="5000">5.000 m</option>
+              </select>
+            </label>
+            <label class="municipal-zoom-control" for="municipal-zoom">Zoom
+              <input id="municipal-zoom" type="range" min="1" max="4" step="0.25" value="1">
+            </label>
+            <label class="municipal-zoom-control" for="municipal-transparency">Transparencia <output id="municipal-transparency-value">15 %</output>
+              <input id="municipal-transparency" type="range" min="0" max="100" step="5" value="15">
+            </label>
+          </div>
+          <div class="municipal-map-viewport" id="municipal-map-viewport">
+            <canvas id="municipal-map" width="100" height="100" role="img" aria-label="Mapa raster municipal interactivo"></canvas>
+          </div>
+          <p class="municipal-map-hint" id="municipal-map-hint">Elige “Marcar mercado en el mapa” y selecciona una ubicación dentro del límite municipal.</p>
+          <div class="raster-scale" id="municipal-legend" aria-label="Leyenda del mapa municipal"></div>
+        </div>
+
+        <aside class="municipal-tools">
+          <section class="municipal-tool-panel" aria-labelledby="market-tool-title">
+            <div class="raster-subheading">
+              <p class="section-index">A <span>/</span> DEFINIR MERCADO CENTRAL</p>
+              <h3 id="market-tool-title">Ubicación del mercado</h3>
+            </div>
+            <label class="market-pick-option"><input type="radio" name="municipal-market-mode" value="click" checked> Marcar mercado en el mapa</label>
+            <div class="municipal-coordinate-form">
+              <label for="municipal-latitude">Latitud (°)</label>
+              <input id="municipal-latitude" type="number" step="0.000001" min="-90" max="90" placeholder="4.4389">
+              <label for="municipal-longitude">Longitud (°)</label>
+              <input id="municipal-longitude" type="number" step="0.000001" min="-180" max="180" placeholder="-75.2322">
+              <button type="button" class="secondary-button" id="municipal-coordinate-market">Usar coordenadas</button>
+            </div>
+            <div class="municipal-capital-note">
+              <b>Cabecera municipal:</b> no se asigna automáticamente. El servicio MGN consultado no incluye coordenadas oficiales de cabecera; utiliza el mapa o ingresa coordenadas verificadas.
+            </div>
+            <p class="municipal-market-status" id="municipal-market-status" aria-live="polite">Aún no se ha definido un mercado.</p>
+            <button type="button" class="secondary-button" id="municipal-change-market" disabled>Marcar otro mercado en el mapa</button>
+          </section>
+
+          <section class="municipal-tool-panel" aria-labelledby="municipal-metadata-title">
+            <div class="raster-subheading">
+              <p class="section-index">B <span>/</span> TRAZABILIDAD</p>
+              <h3 id="municipal-metadata-title">Metadatos territoriales</h3>
+            </div>
+            <dl class="municipal-metadata" id="municipal-metadata"></dl>
+          </section>
+          <div class="municipal-data-gaps">
+            <b>Capas aún no disponibles para este municipio</b>
+            <ul>
+              <li>MAT: no hay raster local de suelo, agua, clima o relieve.</li>
+              <li>MVES: requiere insumos económicos y aptitud con cobertura geográfica local.</li>
+              <li>POT: requiere cartografía normativa municipal oficial.</li>
+            </ul>
+            El límite MGN no sustituye esas capas. La normativa local permanece incompleta.
+          </div>
+        </aside>
+      </div>
+
+      <div class="municipal-cell-panel" id="municipal-cell-panel" hidden>
+        <div class="inspector-heading">
+          <div><p class="section-index">CONSULTA ESPACIAL MUNICIPAL</p><h3 id="municipal-cell-title">Selecciona una celda válida</h3></div>
+          <span class="cell-winner" id="municipal-cell-winner">—</span>
+        </div>
+        <div class="cell-metrics" id="municipal-cell-metrics"></div>
+      </div>
+      <div class="municipal-results" id="municipal-results" hidden></div>
+      <section class="urban-market-lab" aria-labelledby="urban-market-title">
+        <div class="panel-heading raster-heading">
+          <div>
+            <p class="section-index">V1.1 <span>/</span> MODELO ESPACIAL URBANO-RURAL</p>
+            <h2 id="urban-market-title">Mercado urbano y anillos productivos de Von Thünen</h2>
+            <p class="raster-intro">El área urbana representa el mercado; el área rural forma las bandas productivas sin reclasificar automáticamente suelo rural o de expansión.</p>
+          </div>
+          <span class="demo-badge">GEOMETRÍA VERIFICABLE · V1.1</span>
+        </div>
+        <div class="urban-market-controls">
+          <section class="urban-market-panel">
+            <h3>Mercado urbano</h3>
+            <label class="file-button">Cargar GeoJSON urbano/urbano POT<input id="urban-geojson-file" type="file" accept=".geojson,.json,application/geo+json,application/json"></label>
+            <label><input id="urban-fallback-checkbox" type="checkbox" checked> Usar aproximación geoestadística provisional</label>
+            <label>Radio del fallback (km)
+              <input id="urban-fallback-radius" type="number" min="0.1" max="100" step="0.1" value="3">
+            </label>
+            <p class="urban-market-note" id="urban-market-source">Sin cartografía urbana oficial: puede aparecer una aproximación provisional alrededor del mercado marcado.</p>
+          </section>
+          <section class="urban-market-panel">
+            <h3>Anillos productivos</h3>
+            <label>Número de bandas
+              <input id="urban-band-count" type="number" min="2" max="12" step="1" value="5">
+            </label>
+            <label>Distancia máxima (km)
+              <input id="urban-max-distance" type="number" min="1" max="500" step="1" value="30">
+            </label>
+            <label>Modo de distancia
+              <select id="urban-distance-mode">
+                <option value="geometry">Geometría al perímetro urbano</option>
+                <option value="road" disabled>Red vial efectiva (carga GeoJSON EPSG:9377)</option>
+                <option value="economic">Costo económico de acceso</option>
+              </select>
+            </label>
+            <label>Actividad
+              <select id="urban-activity">
+                <option value="0">Horticultura</option>
+                <option value="1">Producción lechera</option>
+                <option value="2">Cultivos de cereales</option>
+                <option value="3">Ganadería extensiva</option>
+              </select>
+            </label>
+            <label><input id="urban-show-urban" type="checkbox" checked> Mostrar área urbana</label>
+            <label><input id="urban-show-rings" type="checkbox" checked> Mostrar anillos</label>
+            <label><input id="urban-show-rents" type="checkbox" checked> Mostrar dominio económico</label>
+          </section>
+          <section class="urban-market-panel">
+            <h3>Accesos comerciales</h3>
+            <label><input id="urban-access-click" type="radio" name="urban-access-mode" value="click" checked> Marcar acceso en el mapa</label>
+            <label>Velocidad vial (km/h)
+              <input id="urban-road-speed" type="number" min="5" max="140" step="5" value="60">
+            </label>
+            <label>Costos/operación y transitabilidad
+              <input id="urban-road-cost" type="number" min="0" step="0.01" value="1">
+            </label>
+            <p class="urban-market-note">Estos parámetros se aplican al modo económico. El modo vial usa velocidad, costo y penalización de cada vía importada.</p>
+            <button type="button" class="secondary-button" id="urban-clear-access">Eliminar accesos</button>
+          </section>
+          <section class="urban-market-panel">
+            <h3>Red vial municipal</h3>
+            <div class="road-catalog-panel">
+              <button type="button" class="secondary-button" id="road-catalog-update">Actualizar red vial</button>
+              <label class="market-toggle"><input type="checkbox" id="road-catalog-show" checked><span>Mostrar red vial nativa</span></label>
+              <p class="urban-market-note"><b>Municipio:</b> <span id="road-catalog-municipality">Ningún municipio seleccionado</span></p>
+              <p class="urban-market-note"><b>Fuente:</b> <span id="road-catalog-source">Sin fuente vial</span></p>
+              <p class="urban-market-note"><b>Actualización:</b> <span id="road-catalog-date">No consultada</span></p>
+              <p class="urban-market-note"><b>Vías:</b> <span id="road-catalog-length">0 m</span> · <b>Segmentos:</b> <span id="road-catalog-segments">0</span> · <b>Nodos compartidos:</b> <span id="road-catalog-nodes">0</span></p>
+              <p class="urban-market-note" id="road-catalog-status" role="status" aria-live="polite">La red vial se consultará automáticamente al cargar el municipio.</p>
+              <p class="urban-market-note" id="road-catalog-coverage">Cobertura complementaria no disponible.</p>
+              <p class="urban-market-note">Fuente complementaria: © colaboradores de OpenStreetMap, licencia ODbL. No reemplaza una red oficial y puede presentar cobertura incompleta.</p>
+            </div>
+            <label class="file-button">Cargar red vial GeoJSON · EPSG:9377
+              <input id="urban-road-geojson-file" type="file" accept=".geojson,.json,application/geo+json,application/json">
+            </label>
+            <p class="urban-market-note" id="urban-road-status" role="status" aria-live="polite">
+              Sin red municipal georreferenciada. Las carreteras del editor general usan la cuadrícula demostrativa y no se aplican aquí.
+            </p>
+            <p class="urban-market-note">Se requieren líneas proyectadas en metros y nodos explícitos en <code>networkMetadata.nodes</code>. Los cruces visuales no conectan carreteras. La salida son km efectivos, no la longitud física de la ruta.</p>
+          </section>
+        </div>
+        <div class="urban-market-layout">
+          <div>
+            <canvas id="urban-market-map" width="100" height="100" role="img" aria-label="Mapa municipal urbano-rural y anillos productivos"></canvas>
+            <div class="urban-market-legend" id="urban-market-legend"></div>
+          </div>
+          <aside class="urban-market-diagnostics">
+            <h3>Indicadores territoriales</h3>
+            <div id="urban-market-indicators"></div>
+            <h3>Celda consultada</h3>
+            <div id="urban-market-cell"></div>
+            <button type="button" class="secondary-button" id="urban-save-json">Guardar configuración</button>
+            <button type="button" class="secondary-button" id="urban-export-json">Exportar GeoJSON/JSON</button>
+            <label class="secondary-button urban-import-label">Importar configuración<input id="urban-import-json" type="file" accept=".json,application/json"></label>
+          </aside>
+        </div>
+      </section>
+    </section>
+
+    <section class="raster-lab panel" aria-labelledby="raster-title">
+      <div class="panel-heading raster-heading">
+        <div>
+          <p class="section-index">06 <span>/</span> ÁLGEBRA DE MAPAS</p>
+          <h2 id="raster-title">Territorio en 10.000 celdas</h2>
+          <p class="raster-intro">Cada celda calcula distancia, transporte, renta y uso productivo. Selecciona una celda para consultar sus valores.</p>
+        </div>
+        <span class="raster-count"><b id="raster-count">10.000</b> CELDAS</span>
+      </div>
+
+      <div class="raster-layout">
+        <div class="raster-map-column">
+          <div class="raster-map-toolbar">
+            <div class="raster-map-label"><span class="status-dot"></span><span id="raster-layer-name">Especialización productiva</span></div>
+            <button type="button" class="road-draw-button" id="road-draw-button" aria-pressed="false">＋ Dibujar carretera</button>
+          </div>
+          <div class="raster-canvas-wrap" id="raster-canvas-wrap">
+            <canvas id="raster-map" width="100" height="100" role="img" aria-label="Mapa raster interactivo de 100 por 100 celdas. Selecciona una celda para inspeccionar sus datos." tabindex="0"></canvas>
+            <div class="raster-coord-label coord-nw">y 0</div>
+            <div class="raster-coord-label coord-se">x 99 · y 99</div>
+          </div>
+          <p class="raster-map-hint" id="raster-map-hint">Haz clic en el mapa para consultar una celda.</p>
+          <div class="raster-scale" id="raster-scale" aria-label="Leyenda de color"></div>
+        </div>
+
+        <aside class="raster-side">
+          <section class="layer-panel" aria-labelledby="layer-title">
+            <div class="raster-subheading">
+              <p class="section-index">A <span>/</span> PANEL DE CAPAS</p>
+              <h3 id="layer-title">Capas de información territorial</h3>
+            </div>
+            <div class="layer-options" role="radiogroup" aria-label="Capa territorial visible">
+              <label class="layer-option"><input type="radio" name="raster-layer" value="specialization" checked><span class="layer-swatch swatch-specialization"></span><span>Especialización productiva</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="distance"><span class="layer-swatch swatch-distance"></span><span>Distancia al mercado</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="transport"><span class="layer-swatch swatch-transport"></span><span>Costos de transporte</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="rent"><span class="layer-swatch swatch-rent"></span><span>Renta de localización</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="land-class"><span class="layer-swatch swatch-land"></span><span>Clase de suelo</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="protection"><span class="layer-swatch swatch-protection"></span><span>Suelo de protección</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="restriction"><span class="layer-swatch swatch-restriction"></span><span>Restricciones</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="usage"><span class="layer-swatch swatch-usage"></span><span>Uso POT seleccionado</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="integrated"><span class="layer-swatch swatch-integrated"></span><span>Renta + admisibilidad</span></label>
+              <label class="layer-option"><input type="radio" name="raster-layer" value="admissibility"><span class="layer-swatch swatch-admissibility"></span><span>Admisibilidad de usos rentables</span></label>
+            </div>
+            <label class="raster-select-label" for="raster-activity">Actividad para costos, rentas y reglas de uso</label>
+            <select id="raster-activity" class="raster-select">
+              <option value="0">Horticultura</option>
+              <option value="1">Producción lechera</option>
+              <option value="2">Cultivos de cereales</option>
+              <option value="3">Ganadería extensiva</option>
+            </select>
+            <label class="market-toggle"><input type="checkbox" id="market-overlay" checked><span>Mostrar mercado central</span></label>
+          </section>
+
+          <section class="market-position-panel" aria-labelledby="market-position-title">
+            <div class="raster-subheading">
+              <p class="section-index">B <span>/</span> TERRITORIO</p>
+              <h3 id="market-position-title">Posición del mercado</h3>
+            </div>
+            <div class="market-coordinate">
+              <label for="market-x">Columna X <output id="market-x-value">50</output></label>
+              <input id="market-x" type="range" min="0" max="99" value="50">
+              <label for="market-y">Fila Y <output id="market-y-value">50</output></label>
+              <input id="market-y" type="range" min="0" max="99" value="50">
+            </div>
+            <p class="map-unit-note">Una celda representa <b id="cell-size-label">1,60 km</b>. Los parámetros son didácticos, no observaciones reales.</p>
+          </section>
+
+          <section class="road-panel" aria-labelledby="road-title">
+            <div class="raster-subheading">
+              <p class="section-index">C <span>/</span> ACCESIBILIDAD</p>
+              <h3 id="road-title">Editor de redes viales</h3>
+            </div>
+            <div class="road-status" id="road-status">Sin carreteras. Usa “Dibujar carretera” y agrega varios vértices.</div>
+            <div class="road-action-grid">
+              <button type="button" class="secondary-button" id="road-new-button">Nueva carretera</button>
+              <button type="button" class="secondary-button" id="road-finish-button" disabled>Finalizar carretera</button>
+              <button type="button" class="secondary-button" id="road-cancel-button" disabled>Cancelar trazado</button>
+              <button type="button" class="secondary-button" id="road-edit-button" disabled>Editar vértices</button>
+              <button type="button" class="secondary-button" id="road-undo-button" disabled>Deshacer</button>
+              <button type="button" class="secondary-button" id="road-redo-button" disabled>Rehacer</button>
+            </div>
+            <label class="raster-select-label" for="road-list">Carreteras creadas</label>
+            <select id="road-list" class="raster-select" size="4"></select>
+            <input id="road-name" type="text" maxlength="80" placeholder="Nombre de la carretera" aria-label="Nombre de la carretera">
+            <div class="road-control-grid">
+              <label>Tipo
+                <select id="road-surface">
+                  <option value="pavimentada">Pavimentada</option>
+                  <option value="destapada">Destapada</option>
+                  <option value="trocha">Trocha</option>
+                </select>
+              </label>
+              <label>Velocidad km/h
+                <input id="road-speed" type="number" min="5" max="140" step="5" value="60">
+              </label>
+              <label>Costo circulación
+                <input id="road-circulation-cost" type="number" min="0" step="0.01" value="1">
+              </label>
+              <label>Penalización
+                <input id="road-penalty" type="number" min="0" step="0.05" value="0">
+              </label>
+              <label>Capacidad
+                <input id="road-capacity" type="number" min="0" step="100" value="0">
+              </label>
+            </div>
+            <div class="road-control">
+              <label for="road-reduction">Reducción máxima <output id="road-reduction-value">50 %</output></label>
+              <input id="road-reduction" type="range" min="0" max="80" step="5" value="50">
+            </div>
+            <div class="road-control">
+              <label for="road-reach">Alcance de influencia <output id="road-reach-value">8 km</output></label>
+              <input id="road-reach" type="range" min="2" max="30" step="1" value="8">
+            </div>
+            <div class="road-action-grid">
+              <button type="button" class="secondary-button" id="road-add-vertex" disabled>Agregar vértice</button>
+              <button type="button" class="secondary-button" id="road-delete-vertex" disabled>Eliminar vértice</button>
+              <button type="button" class="secondary-button" id="road-duplicate-button" disabled>Duplicar carretera</button>
+              <button type="button" class="secondary-button" id="road-delete-button" disabled>Eliminar carretera</button>
+            </div>
+            <div class="road-action-grid">
+              <select id="road-connect-a" class="raster-select" aria-label="Primera carretera"></select>
+              <select id="road-connect-b" class="raster-select" aria-label="Segunda carretera"></select>
+              <button type="button" class="secondary-button" id="road-connect-button" disabled>Crear nodo / conectar</button>
+              <button type="button" class="secondary-button" id="road-disconnect-button" disabled>Desconectar nodo</button>
+            </div>
+            <label class="market-toggle"><input type="checkbox" id="road-show-nodes" checked><span>Mostrar nodos</span></label>
+            <label class="market-toggle"><input type="checkbox" id="road-show-intersections" checked><span>Mostrar intersecciones</span></label>
+            <button type="button" class="secondary-button" id="road-save-button">Guardar red vial</button>
+            <div class="road-action-grid">
+              <button type="button" class="secondary-button" id="road-export-button">Exportar GeoJSON</button>
+              <label class="secondary-button road-import-label">Importar GeoJSON<input id="road-import-file" type="file" accept=".geojson,.json,application/geo+json,application/json"></label>
+            </div>
+            <p class="road-method-note" id="road-topology-status">Topología: sin carreteras.</p>
+            <p class="road-method-note">El costo acumulado usa la red de nodos y segmentos explícitos. Un cruce visual sin nodo compartido permanece desconectado.</p>
+          </section>
+
+          <button type="button" class="reset-button" id="reset-simulator">Restaurar parámetros iniciales</button>
+        </aside>
+      </div>
+
+      <div class="cell-inspector" aria-live="polite">
+        <div class="inspector-heading">
+          <div><p class="section-index">CONSULTA DE CELDA</p><h3 id="cell-title">Selecciona una celda</h3></div>
+          <span class="cell-winner" id="cell-winner">—</span>
+        </div>
+        <div class="cell-metrics" id="cell-metrics"><span>Haz clic en cualquier celda del mapa raster para consultar las capas calculadas.</span></div>
+        <p class="cell-regulation-condition" id="cell-regulation-condition"></p>
+        <p class="tie-note">Regla de empate: gana la primera actividad en el orden de la leyenda. Rentas iguales o inferiores a cero se clasifican como “sin actividad viable”.</p>
+      </div>
+
+      <div class="raster-comparison">
+        <div class="raster-comparison-heading">
+          <div><p class="section-index">D <span>/</span> COMPARACIÓN CELDA A CELDA</p><h3>Territorio original y carretera</h3></div>
+          <strong><span id="changed-percent">0,0</span><small>% cambió de actividad</small></strong>
+        </div>
+        <div class="raster-compare-maps">
+          <figure><figcaption>Sin carretera <span id="before-viable-count"></span></figcaption><canvas id="before-map" width="100" height="100" role="img" aria-label="Mapa raster original sin carretera"></canvas></figure>
+          <figure><figcaption>Escenario actual <span id="after-viable-count"></span></figcaption><canvas id="after-map" width="100" height="100" role="img" aria-label="Mapa raster del escenario actual"></canvas></figure>
+          <figure><figcaption>Especialización modificada</figcaption><canvas id="change-map" width="100" height="100" role="img" aria-label="Mapa binario de las celdas que cambiaron de especialización"></canvas></figure>
+        </div>
+        <p class="change-map-key"><i></i> Verde oscuro = celda cuya actividad dominante cambió</p>
+        <div class="raster-stats">
+          <div class="changed-count"><b id="changed-cells">0</b><span>celdas con cambio de especialización</span></div>
+          <div class="activity-area-table" id="activity-area-table"></div>
+          <div class="raster-rent-table" id="raster-rent-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="governance-lab panel" aria-labelledby="governance-title">
+      <div class="panel-heading raster-heading">
+        <div>
+          <p class="section-index">08 <span>/</span> LABORATORIO DE ORDENAMIENTO TERRITORIAL</p>
+          <h2 id="governance-title">Rentabilidad no es permiso de uso</h2>
+          <p class="raster-intro">Superpone clases del suelo, áreas de protección y restricciones a la renta calculada. La norma modifica admisibilidad, nunca los valores económicos.</p>
+        </div>
+        <span class="demo-badge">ESCENARIO DIDÁCTICO</span>
+      </div>
+
+      <div class="legal-warning" role="note">
+        <b>Importante:</b> Las clases y reglas iniciales son hipotéticas, no describen un municipio real ni constituyen asesoría o certificación jurídica. Los usos aplicables dependen del POT, PBOT o EOT, sus mapas, actos locales y normas vigentes; verifica las fuentes oficiales antes de tomar decisiones.
+      </div>
+
+      <div class="governance-meta">
+        <label>Municipio o escenario
+          <input id="territory-municipality" type="text" maxlength="100" value="Escenario didáctico hipotético">
+        </label>
+        <label>Instrumento
+          <select id="territory-instrument">
+            <option value="POT">POT</option><option value="PBOT">PBOT</option><option value="EOT">EOT</option><option value="demo" selected>Sin instrumento real · demostración</option>
+          </select>
+        </label>
+        <label>Acto / acuerdo
+          <input id="territory-act" type="text" maxlength="100" placeholder="Opcional">
+        </label>
+        <label>Fecha / versión consultada
+          <input id="territory-date" type="text" maxlength="60" placeholder="Opcional">
+        </label>
+      </div>
+
+      <div class="governance-columns">
+        <section class="governance-subpanel" aria-labelledby="rule-matrix-title">
+          <div class="raster-subheading">
+            <p class="section-index">A <span>/</span> REGLAS DE USO</p>
+            <h3 id="rule-matrix-title">Matriz editable de compatibilidad</h3>
+          </div>
+          <p class="governance-note">“Principal” y “compatible” cuentan como admisibles en el modelo; “condicionado” exige verificación y no se presume permitido; “prohibido” excluye ese uso. Estas categorías son datos de escenario.</p>
+          <div class="table-scroll">
+            <table class="rule-table">
+              <thead><tr><th>CLASE</th><th>ACTIVIDAD</th><th>USO</th><th>Condición / fuente</th></tr></thead>
+              <tbody id="rule-matrix"></tbody>
+            </table>
+          </div>
+          <div class="import-row">
+            <label class="file-button">Importar matriz CSV/JSON<input id="rule-file" type="file" accept=".csv,.json,application/json,text/csv"></label>
+            <button type="button" class="secondary-button" id="download-rules">Descargar matriz JSON</button>
+          </div>
+          <p id="rule-file-status" class="file-status" aria-live="polite">La matriz actual es hipotética y editable.</p>
+        </section>
+
+        <section class="governance-subpanel" aria-labelledby="territory-edit-title">
+          <div class="raster-subheading">
+            <p class="section-index">B <span>/</span> CAPA TERRITORIAL</p>
+            <h3 id="territory-edit-title">Editar la celda seleccionada</h3>
+          </div>
+          <p class="governance-note">Selecciona la capa del mapa y una celda. La protección y las restricciones son máscaras superpuestas: no reemplazan la clase del suelo.</p>
+          <label class="editor-field">Clase de suelo
+            <select id="cell-soil-class"></select>
+          </label>
+          <label class="editor-check"><input id="cell-protection" type="checkbox"> Suelo o área de protección</label>
+          <label class="editor-check"><input id="cell-restriction" type="checkbox"> Restricción / condición territorial</label>
+          <div class="import-row">
+            <label class="file-button">Importar GeoJSON<input id="territory-file" type="file" accept=".geojson,.json,application/geo+json,application/json"></label>
+            <button type="button" class="secondary-button" id="reset-territory">Restaurar escenario didáctico</button>
+          </div>
+          <p id="territory-file-status" class="file-status" aria-live="polite">GeoJSON Polygon/MultiPolygon con propiedades soilClass, protection y/o restriction. Se ajusta a la cuadrícula como ilustración; no hay reproyección geográfica.</p>
+        </section>
+      </div>
+
+      <div class="governance-results">
+        <div class="governance-result-heading">
+          <div><p class="section-index">C <span>/</span> RESULTADO INTEGRADO</p><h3>Comparación económica y territorial</h3></div>
+          <label class="selected-activity-label">Actividad evaluada
+            <select id="governance-activity"></select>
+          </label>
+        </div>
+        <div class="governance-summary" id="governance-summary"></div>
+        <div class="governance-maps">
+          <figure><figcaption>Sin carretera</figcaption><canvas id="governance-before-map" width="100" height="100" role="img" aria-label="Admisibilidad territorial anterior"></canvas></figure>
+          <figure><figcaption>Escenario actual</figcaption><canvas id="governance-after-map" width="100" height="100" role="img" aria-label="Admisibilidad territorial actual"></canvas></figure>
+          <figure><figcaption>Estado integrado por celda</figcaption><div id="integrated-legend" class="integrated-legend"></div></figure>
+        </div>
+        <div class="governance-metrics" id="governance-metrics"></div>
+        <div class="governance-reading" aria-live="polite">
+          <h3>Interpretación del territorio</h3>
+          <p id="governance-interpretation"></p>
+        </div>
+      </div>
+
+      <div class="legal-references">
+        <h3>Marco normativo nacional de referencia</h3>
+        <div id="legal-reference-list"></div>
+        <p>Referencias generales; no son una lista exhaustiva ni determinan por sí solas la admisibilidad de un uso específico. Consulta el instrumento local y sus determinantes aplicables.</p>
+      </div>
+    </section>
+
+    <section class="learning-panel territorial-learning panel" aria-live="polite">
+      <div class="learning-icon" aria-hidden="true">⌖</div>
+      <div>
+        <p class="section-index">07 <span>/</span> INTERPRETACIÓN DEL TERRITORIO</p>
+        <h2>Lectura de las superficies calculadas</h2>
+        <p id="territorial-interpretation"></p>
+      </div>
+    </section>
+
+    <section class="suitability-lab panel" aria-labelledby="mat-title">
+      <div class="panel-heading raster-heading">
+        <div>
+          <p class="section-index">09 <span>/</span> MODELO DE APTITUD TERRITORIAL</p>
+          <h2 id="mat-title">Aptitud del territorio para cada actividad</h2>
+          <p class="raster-intro">Compara la oferta física y ambiental de cada celda con los requerimientos configurables de cuatro sistemas productivos. La aptitud es independiente de la renta y del permiso normativo.</p>
+        </div>
+        <span class="demo-badge">DATOS DIDÁCTICOS SIMULADOS</span>
+      </div>
+      <div class="mat-method-note">
+        <b>Marco metodológico:</b> enfoque oferta–demanda de evaluación de tierras (FAO), evaluación agropecuaria (UPRA) y capacidad de uso (IGAC). Las superficies iniciales son sintéticas, no observaciones reales. Los rangos de clase son umbrales didácticos configurables, no estándares oficiales.
+      </div>
+
+      <div class="mat-controls-grid">
+        <section class="mat-subpanel">
+          <div class="raster-subheading"><p class="section-index">A <span>/</span> EXPLORAR SUPERFICIES</p><h3>Capas y mapa</h3></div>
+          <div class="mat-map-controls">
+            <label>Superficie
+              <select id="mat-map-mode">
+                <option value="dominant">Aptitud territorial dominante</option>
+                <option value="activity">Aptitud por actividad</option>
+                <option value="criterion">Variable territorial</option>
+                <option value="integration">Coincidencia y conflictos</option>
+              </select>
+            </label>
+            <label>Actividad
+              <select id="mat-map-activity"></select>
+            </label>
+            <label>Variable
+              <select id="mat-map-criterion"></select>
+            </label>
+          </div>
+          <div class="mat-map-wrap">
+            <canvas id="suitability-map" width="100" height="100" role="img" aria-label="Mapa raster de aptitud territorial de 100 por 100 celdas" tabindex="0"></canvas>
+          </div>
+          <div class="raster-scale" id="mat-map-legend" aria-label="Leyenda del mapa de aptitud"></div>
+          <p class="mat-map-note" id="mat-map-note"></p>
+        </section>
+
+        <section class="mat-subpanel">
+          <div class="raster-subheading"><p class="section-index">B <span>/</span> CLASIFICACIÓN</p><h3>Umbrales didácticos</h3></div>
+          <p class="governance-note">MAT<sub>i</sub>(x,y) = Σ<sub>j</sub> [w<sub>ij</sub> × s<sub>ij</sub>(x,y)]. El puntaje de cada factor compara oferta (0–100) y requerimiento mínimo editable; los pesos se normalizan para sumar 1. Una limitante crítica bajo S3 fuerza N aunque el promedio ponderado sea mayor.</p>
+          <div class="mat-threshold-grid">
+            <label>S1 desde <input id="mat-threshold-s1" type="number" min="1" max="100" step="1" value="80"></label>
+            <label>S2 desde <input id="mat-threshold-s2" type="number" min="1" max="99" step="1" value="60"></label>
+            <label>S3 desde <input id="mat-threshold-s3" type="number" min="1" max="98" step="1" value="40"></label>
+          </div>
+          <p id="mat-threshold-status" class="file-status" aria-live="polite">Requiere S1 &gt; S2 &gt; S3. Cada actividad normaliza sus pesos para que sumen 1.</p>
+          <div class="mat-activity-maps" id="mat-activity-maps">
+            <figure><figcaption id="mat-activity-label-0"></figcaption><canvas id="mat-activity-map-0" width="100" height="100" role="img" aria-label="Mapa de aptitud para horticultura"></canvas></figure>
+            <figure><figcaption id="mat-activity-label-1"></figcaption><canvas id="mat-activity-map-1" width="100" height="100" role="img" aria-label="Mapa de aptitud para producción lechera"></canvas></figure>
+            <figure><figcaption id="mat-activity-label-2"></figcaption><canvas id="mat-activity-map-2" width="100" height="100" role="img" aria-label="Mapa de aptitud para cereales"></canvas></figure>
+            <figure><figcaption id="mat-activity-label-3"></figcaption><canvas id="mat-activity-map-3" width="100" height="100" role="img" aria-label="Mapa de aptitud para ganadería extensiva"></canvas></figure>
+            <figure><figcaption>Aptitud dominante</figcaption><canvas id="mat-dominant-map" width="100" height="100" role="img" aria-label="Mapa de aptitud territorial dominante"></canvas></figure>
+            <figure><figcaption>Coincidencias y conflictos</figcaption><canvas id="mat-integration-map" width="100" height="100" role="img" aria-label="Mapa de coincidencias de aptitud, rentabilidad y admisibilidad normativa"></canvas></figure>
+          </div>
+          <div class="mat-class-legend" id="mat-class-legend"></div>
+        </section>
+      </div>
+
+      <div class="mat-diagnostic">
+        <div class="governance-result-heading">
+          <div><p class="section-index">C <span>/</span> DIAGNÓSTICO DE LIMITACIONES</p><h3 id="mat-diagnostic-title">Consulta de celda</h3></div>
+          <label class="selected-activity-label">Actividad evaluada
+            <select id="mat-diagnostic-activity"></select>
+          </label>
+        </div>
+        <div class="mat-inspector" id="mat-inspector"></div>
+        <div class="mat-cell-editor">
+          <div class="mat-editor-heading">
+            <h4>Editar variable de la celda seleccionada</h4>
+            <label>Variable <select id="mat-editor-criterion"></select></label>
+          </div>
+          <div class="mat-global-adjustment">
+            <label for="mat-layer-adjustment">Ajustar la oferta en toda la capa <output id="mat-layer-adjustment-value">0 puntos</output></label>
+            <input id="mat-layer-adjustment" type="range" min="-30" max="30" step="1" value="0">
+            <p>Desplaza el puntaje de oferta de la variable elegida en todas las celdas del escenario simulado. No representa una medición ni cambia otras capas.</p>
+          </div>
+          <div id="mat-cell-value-editor"></div>
+          <button type="button" class="secondary-button" id="mat-reset-cell">Restaurar valores simulados de esta celda</button>
+        </div>
+      </div>
+
+      <div class="mat-results">
+        <div class="raster-subheading"><p class="section-index">D <span>/</span> INDICADORES Y ARTICULACIÓN</p><h3>Superficie y competencia entre criterios</h3></div>
+        <div class="mat-summary" id="mat-summary"></div>
+        <div class="table-scroll">
+          <table class="mat-results-table">
+            <thead><tr><th>ACTIVIDAD</th><th>S1 · ALTA</th><th>S2 · MEDIA</th><th>S3 · MARGINAL</th><th>N · NO APTA</th><th>PESO TOTAL</th></tr></thead>
+            <tbody id="mat-results-rows"></tbody>
+          </table>
+        </div>
+        <div class="mat-integration-legend" id="mat-integration-legend"></div>
+        <p id="mat-integration-reading" class="governance-reading-copy" aria-live="polite"></p>
+      </div>
+
+      <div class="mat-profile-editor">
+        <div class="raster-subheading"><p class="section-index">E <span>/</span> MATRIZ EDITABLE DE REQUERIMIENTOS</p><h3>Pesos, oferta requerida y limitantes críticas</h3></div>
+        <p class="governance-note">Cada criterio muestra su rango, unidad, función de evaluación, fuente y calidad. El peso se renormaliza por actividad; “crítico” impide compensar una condición N. Los requerimientos y pesos iniciales solo son parámetros pedagógicos.</p>
+        <div id="mat-profile-matrices"></div>
+        <button type="button" class="secondary-button" id="mat-reset-profiles">Restaurar perfiles y umbrales MAT iniciales</button>
+      </div>
+
+      <div class="mat-method-footer">
+        Todas las condiciones, rangos y criterios predeterminados son ilustrativos y editables; no describen un predio ni reemplazan muestreo de campo, asistencia técnica, estudios ambientales o consulta de información oficial.
+      </div>
+    </section>
+
+    <section class="valuation-lab panel" aria-labelledby="mves-title">
+      <div class="panel-heading raster-heading">
+        <div>
+          <p class="section-index">10 <span>/</span> MODELO DE VALORACIÓN ECONÓMICA DEL SUELO</p>
+          <h2 id="mves-title">De la producción al valor económico del suelo</h2>
+          <p class="raster-intro">Estima ingresos, costos, margen operativo y renta residual; compara capitalización y flujo de caja en cada celda.</p>
+        </div>
+        <span class="demo-badge">ESCENARIO ECONÓMICO DIDÁCTICO</span>
+      </div>
+
+      <div class="mves-warning" role="note">
+        <b>No es un avalúo comercial.</b> Precios, rendimientos, costos, rentas y tasas iniciales son parámetros hipotéticos editables, no cotizaciones ni observaciones de mercado. El resultado no es avalúo oficial, asesoría financiera ni autorización de uso. No incluye construcciones, mejoras ni activos productivos.
+      </div>
+
+      <div class="mves-controls">
+        <section class="mves-subpanel" aria-labelledby="mves-config-title">
+          <div class="raster-subheading"><p class="section-index">A <span>/</span> CONFIGURACIÓN ECONÓMICA</p><h3 id="mves-config-title">Parámetros por actividad</h3></div>
+          <p class="governance-note">Precios en COP por unidad; producción y costos variables por hectárea y ciclo; costos fijos y remuneración de factores por hectárea y año. Trabajo, capital, administración y beneficio empresarial imputado se registran una sola vez como factores no territoriales; la renta del suelo es el residuo posterior. El costo raster se interpreta como anual, se convierte con el factor explícito (valor inicial 1, ilustrativo) y se descuenta una sola vez; no se multiplica por ciclos.</p>
+          <div id="mves-activity-config" class="mves-activity-config"></div>
+          <div class="mves-common-grid">
+            <label>Método de valoración
+              <select id="mves-method">
+                <option value="capitalization">Capitalización de renta constante</option>
+                <option value="dcf">Flujo de caja descontado</option>
+              </select>
+            </label>
+            <label>Escenario normativo
+              <select id="mves-scenario">
+                <option value="potential">Valor potencial hipotético</option>
+                <option value="admissible">Usos principales o compatibles</option>
+              </select>
+            </label>
+            <label>Conversión de transporte del raster
+              <input id="mves-transport-conversion" type="number" min="0" step="0.1" value="1">
+              <small>COP por unidad monetaria raster</small>
+            </label>
+            <label>Tasa de capitalización anual (%)
+              <input id="mves-cap-rate" type="number" min="0" max="100" step="0.1" value="8">
+            </label>
+            <label>Tasa de descuento anual (%)
+              <input id="mves-discount-rate" type="number" min="0" max="100" step="0.1" value="9">
+            </label>
+            <label>Horizonte del flujo (años)
+              <input id="mves-horizon" type="number" min="1" max="100" step="1" value="10">
+            </label>
+            <label>Crecimiento anual de ingresos (%)
+              <input id="mves-income-growth" type="number" min="-99" max="100" step="0.1" value="2">
+            </label>
+            <label>Crecimiento anual de costos (%)
+              <input id="mves-cost-growth" type="number" min="-99" max="100" step="0.1" value="2.5">
+            </label>
+            <label>Valor terminal al final del horizonte (COP/ha)
+              <input id="mves-terminal-value" type="number" min="0" step="100000" value="0">
+            </label>
+          </div>
+          <p class="mves-method-note" id="mves-method-note">La capitalización solo muestra una estimación si la renta residual anual es positiva y la tasa es mayor que cero. No se convierte una renta negativa en valor positivo.</p>
+          <p class="file-status" id="mves-status" aria-live="polite">Los resultados son escenarios ilustrativos, no valores comerciales observados.</p>
+        </section>
+
+        <section class="mves-subpanel" aria-labelledby="mves-sensitivity-title">
+          <div class="raster-subheading"><p class="section-index">B <span>/</span> ANÁLISIS DE SENSIBILIDAD</p><h3 id="mves-sensitivity-title">Escenarios individuales y combinados</h3></div>
+          <p class="governance-note">Compara hasta dos cambios simultáneos contra los parámetros base. El transporte aplica como factor al costo calculado por el raster existente; no crea un segundo costo de transporte. La disponibilidad hídrica se explora con la capa y ajuste global del MAT.</p>
+          <div class="mves-sensitivity-row">
+            <label for="mves-sensitivity-a">Cambio A</label>
+            <select id="mves-sensitivity-a"></select>
+            <input id="mves-sensitivity-a-value" type="range" min="-50" max="100" step="5" value="0">
+            <output id="mves-sensitivity-a-output">0 %</output>
+          </div>
+          <div class="mves-sensitivity-row">
+            <label for="mves-sensitivity-b">Cambio B</label>
+            <select id="mves-sensitivity-b"></select>
+            <input id="mves-sensitivity-b-value" type="range" min="-50" max="100" step="5" value="0">
+            <output id="mves-sensitivity-b-output">0 %</output>
+          </div>
+          <p id="mves-sensitivity-summary" class="mves-method-note"></p>
+          <button type="button" class="secondary-button" id="mves-reset">Restaurar parámetros MVES iniciales</button>
+        </section>
+      </div>
+
+      <div class="mves-results">
+        <div class="governance-result-heading">
+          <div><p class="section-index">C <span>/</span> MAPA Y RESULTADOS</p><h3>Valor económico por hectárea · celda seleccionada</h3></div>
+          <span class="demo-badge" id="mves-map-scenario">Valor potencial</span>
+        </div>
+        <div class="mves-summary" id="mves-summary"></div>
+        <div class="mves-map-layout">
+          <div>
+            <div class="mves-map-wrap">
+              <canvas id="mves-value-map" width="100" height="100" role="img" aria-label="Mapa raster del valor económico por hectárea" tabindex="0"></canvas>
+            </div>
+            <div class="mves-map-legend">
+              <span><i class="mves-gradient"></i></span>
+              <span id="mves-map-range"></span>
+              <span><i class="mves-no-value-swatch"></i> Sin estimación positiva</span>
+            </div>
+            <p class="mat-map-note">Cada celda hereda el costo de transporte del raster actual y el índice continuo de aptitud específico de cada actividad. El mapa muestra el mayor valor positivo del escenario seleccionado; no es precio de mercado.</p>
+          </div>
+          <div class="mves-diagnostic">
+            <h4 id="mves-cell-title">Diagnóstico económico territorial</h4>
+            <div id="mves-cell-summary" class="mves-cell-summary"></div>
+            <p id="mves-interpretation" class="governance-reading-copy" aria-live="polite"></p>
+          </div>
+        </div>
+        <div class="table-scroll mves-table-scroll">
+          <table class="mves-table">
+            <thead><tr><th>ACTIVIDAD</th><th>INGRESO BRUTO<br>COP/ha/año</th><th>COSTOS OPERATIVOS<br>COP/ha/año</th><th>TRANSPORTE<br>COP/ha/año</th><th>MARGEN OPERATIVO<br>COP/ha/año</th><th>OTROS FACTORES NO TIERRA<br>COP/ha/año</th><th>BENEFICIO EMPRESARIAL IMPUTADO<br>COP/ha/año</th><th>RENTA DEL SUELO<br>COP/ha/año</th><th>TASA APLICADA<br>r anual</th><th>VALOR ESTIMADO<br>COP/ha</th><th>APTITUD</th><th>USO</th></tr></thead>
+            <tbody id="mves-comparison-rows"></tbody>
+          </table>
+        </div>
+        <p class="mves-disclaimer">Renta del suelo = ingreso bruto − costos operativos − transporte raster − otros factores no territoriales − beneficio empresarial imputado. Esta renta residual no se suma de nuevo a la renta de localización; el costo de transporte se descuenta una sola vez. Los usos condicionados se reportan para verificación, pero no se incluyen como admisibles. Una restricción no implica pérdida automática del valor del inmueble.</p>
+      </div>
+    </section>
+
+    <section class="plusvalia-lab panel" aria-labelledby="plusvalia-title">
+      <div class="panel-heading raster-heading">
+        <div>
+          <p class="section-index">11 <span>/</span> VALORIZACIÓN ECONÓMICA Y PLUSVALÍA URBANÍSTICA</p>
+          <h2 id="plusvalia-title">Valorización y plusvalía del suelo</h2>
+          <p class="raster-intro">Compara un escenario inicial y otro posterior sin confundir valoración económica, plusvalía urbana y contribución de valorización.</p>
+        </div>
+        <span class="demo-badge">SIMULACIÓN V0.8 · NO ES LIQUIDACIÓN OFICIAL</span>
+      </div>
+
+      <div class="plusvalia-warning" role="note">
+        <b>Precaución jurídica y metodológica:</b> los precios comerciales, porcentajes de participación y datos normativos deben registrarse con fuente verificable. Sin referencia comprobada no se genera una liquidación.
+      </div>
+
+      <div class="plusvalia-controls">
+        <section class="plusvalia-subpanel">
+          <div class="raster-subheading"><p class="section-index">A <span>/</span> ESCENARIOS</p><h3>Configuración comparativa</h3></div>
+          <div class="plusvalia-grid">
+            <label>Municipio
+              <input id="plusvalia-municipality" type="text" value="Escenario didáctico hipotético">
+            </label>
+            <label>Fecha / periodo
+              <input id="plusvalia-period" type="text" placeholder="AAAA o AAAA-MM">
+            </label>
+            <label>Escenario inicial
+              <input id="plusvalia-scenario-a" type="text" value="Situación inicial">
+            </label>
+            <label>Escenario posterior
+              <input id="plusvalia-scenario-b" type="text" value="Intervención territorial">
+            </label>
+            <label>Método
+              <select id="plusvalia-method">
+                <option value="capitalization">Capitalización del MVES</option>
+                <option value="dcf">Flujo descontado del MVES</option>
+              </select>
+            </label>
+            <label>Escenario MVES
+              <select id="plusvalia-scenario-mode">
+                <option value="potential">Potencial hipotético</option>
+                <option value="admissible">Usos admisibles</option>
+              </select>
+            </label>
+          </div>
+          <label class="raster-select-label" for="plusvalia-interventions">Intervenciones</label>
+          <select id="plusvalia-interventions" multiple size="7" class="plusvalia-interventions"></select>
+          <div class="plusvalia-grid">
+            <label><input id="plusvalia-factor-transport" type="checkbox" checked> Reducción de transporte</label>
+            <label><input id="plusvalia-factor-accessibility" type="checkbox" checked> Accesibilidad</label>
+            <label><input id="plusvalia-factor-rent" type="checkbox" checked> Renta de localización</label>
+            <label><input id="plusvalia-factor-aptitude" type="checkbox" checked> Aptitud / productividad</label>
+            <label><input id="plusvalia-factor-use" type="checkbox" checked> Cambio de uso</label>
+            <label><input id="plusvalia-factor-building" type="checkbox" checked> Mayor aprovechamiento</label>
+          </div>
+        </section>
+
+        <section class="plusvalia-subpanel">
+          <div class="raster-subheading"><p class="section-index">B <span>/</span> HECHO GENERADOR</p><h3>Datos didácticos de plusvalía</h3></div>
+          <p class="governance-note">La participación municipal no puede estimarse sin acuerdo aplicable. Deje ambos precios en cero si no existen referencias verificables.</p>
+          <div class="plusvalia-grid">
+            <label>Precio anterior (COP/m²)
+              <input id="plusvalia-price-before" type="number" min="0" step="1000" value="0">
+            </label>
+            <label>Precio posterior (COP/m²)
+              <input id="plusvalia-price-after" type="number" min="0" step="1000" value="0">
+            </label>
+            <label>Área representada por celda (m²)
+              <input id="plusvalia-area-cell" type="number" min="1" step="100" value="10000">
+            </label>
+            <label>Participación municipal (%)
+              <input id="plusvalia-participation" type="number" min="0" max="100" step="0.1" value="0">
+            </label>
+            <label>Fuente
+              <input id="plusvalia-source" type="text" placeholder="Avalúo, ZGH o estudio de mercado">
+            </label>
+            <label>Fecha de referencia
+              <input id="plusvalia-source-date" type="text" placeholder="AAAA-MM-DD">
+            </label>
+            <label>Metodología
+              <input id="plusvalia-methodology" type="text" placeholder="Método usado">
+            </label>
+          </div>
+          <div class="plusvalia-actions">
+            <button type="button" class="secondary-button" id="plusvalia-capture-a">Capturar escenario inicial</button>
+            <button type="button" class="secondary-button" id="plusvalia-run">Ejecutar comparación</button>
+            <button type="button" class="secondary-button" id="plusvalia-save">Guardar escenario</button>
+            <button type="button" class="secondary-button" id="plusvalia-duplicate">Duplicar</button>
+            <button type="button" class="secondary-button" id="plusvalia-export-csv">Exportar CSV</button>
+            <button type="button" class="secondary-button" id="plusvalia-export-json">Exportar escenario</button>
+            <button type="button" class="secondary-button" id="plusvalia-export-geojson">Exportar GeoJSON</button>
+            <label class="secondary-button plusvalia-import-label">Importar escenario<input id="plusvalia-import-file" type="file" accept=".json,application/json"></label>
+          </div>
+          <p class="file-status" id="plusvalia-status" aria-live="polite">Captura el escenario inicial antes de modificar el territorio.</p>
+        </section>
+      </div>
+
+      <div class="plusvalia-summary" id="plusvalia-summary"></div>
+
+      <div class="plusvalia-map-grid">
+        <figure><figcaption>Valor económico inicial</figcaption><canvas id="plusvalia-map-a" width="100" height="100"></canvas></figure>
+        <figure><figcaption>Valor económico posterior</figcaption><canvas id="plusvalia-map-b" width="100" height="100"></canvas></figure>
+        <figure><figcaption>Variación del valor</figcaption><canvas id="plusvalia-map-change" width="100" height="100"></canvas></figure>
+        <figure><figcaption>Efecto de plusvalía estimado</figcaption><canvas id="plusvalia-map-plusvalia" width="100" height="100"></canvas></figure>
+      </div>
+      <div class="plusvalia-map-legends">
+        <span><i class="plusvalia-positive"></i> Valoración positiva</span>
+        <span><i class="plusvalia-negative"></i> Desvalorización</span>
+        <span><i class="plusvalia-neutral"></i> Sin variación significativa</span>
+        <span><i class="plusvalia-insufficient"></i> Información insuficiente</span>
+      </div>
+
+      <div class="plusvalia-diagnostics">
+        <section>
+          <h3>Ficha de la celda</h3>
+          <div id="plusvalia-cell-summary" class="plusvalia-cell-summary"></div>
+        </section>
+        <section>
+          <h3>Factores explicativos</h3>
+          <canvas id="plusvalia-factors-chart" width="620" height="220"></canvas>
+          <p class="governance-note">La descomposición es contrafactual o aproximada; las interacciones pueden hacer que los componentes no sumen exactamente el cambio observado.</p>
+        </section>
+      </div>
+      <select id="plusvalia-saved-list" class="raster-select" size="4" aria-label="Escenarios guardados"></select>
+    </section>
+
+    <section class="simulator-grid" aria-label="Panel del simulador">
+      <aside class="control-panel panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-index">01 <span>/</span> EXPERIMENTO</p>
+            <h2>Explora un escenario</h2>
+          </div>
+          <span class="edit-badge"><span aria-hidden="true">✳</span> EDITABLE</span>
+        </div>
+
+        <div class="scenario-control">
+          <span class="control-caption">ELIGE UN EXPERIMENTO</span>
+          <div class="scenario-options" role="group" aria-label="Escenarios de transporte">
+            <button type="button" class="scenario-button is-active" data-scenario="original" aria-pressed="true"><span>01</span> Modelo original</button>
+            <button type="button" class="scenario-button" data-scenario="costos" aria-pressed="false"><span>02</span> Más costos de transporte</button>
+            <button type="button" class="scenario-button" data-scenario="carretera" aria-pressed="false"><span>03</span> Construir carretera</button>
+          </div>
+          <div class="scenario-adjustments" id="scenario-adjustments"></div>
+        </div>
+
+        <div class="distance-control">
+          <div class="control-title-row">
+            <label for="distance">Ubicación que exploras</label>
+            <output class="distance-readout" id="distance-output" for="distance">20 <small>km</small></output>
+          </div>
+          <input id="distance" class="distance-slider" type="range" min="0" max="80" step="1" value="20" aria-describedby="distance-hint">
+          <div class="range-ends"><span>0 km <i>mercado</i></span><span><b id="territory-end">80</b> km <i>límite</i></span></div>
+          <p class="control-hint" id="distance-hint">Mueve el punto para ver qué actividad tiene mayor renta aquí.</p>
+        </div>
+
+        <div class="territory-control">
+          <div class="control-title-row">
+            <label for="territory-distance">Distancia máxima del territorio</label>
+            <output class="small-readout" id="territory-output" for="territory-distance">80 km</output>
+          </div>
+          <input id="territory-distance" class="distance-slider" type="range" min="20" max="120" step="5" value="80" aria-label="Distancia máxima del territorio">
+        </div>
+
+        <div class="access-control">
+          <div class="control-title-row">
+            <label for="accessibility">Accesibilidad al mercado</label>
+            <output class="small-readout" id="accessibility-output" for="accessibility">100 %</output>
+          </div>
+          <input id="accessibility" class="distance-slider" type="range" min="50" max="150" step="5" value="100" aria-label="Accesibilidad al mercado">
+          <p class="control-hint">Un porcentaje mayor representa mejor acceso y reduce los costos efectivos.</p>
+        </div>
+
+        <div class="activities-heading">
+          <span>PARÁMETROS PRODUCTIVOS</span>
+          <span class="unit-label">EDITA A Y t</span>
+        </div>
+        <div class="activity-list" id="activity-inputs"></div>
+        <p class="panel-footnote"><span aria-hidden="true">ⓘ</span> A = ingreso en el mercado · t = costo de transporte por km</p>
+      </aside>
+
+      <div class="results-column">
+        <section class="summary-card panel" aria-live="polite">
+          <div class="summary-main">
+            <div class="summary-label"><span class="summary-icon" aria-hidden="true">↗</span> ACTIVIDAD DOMINANTE</div>
+            <h2 id="winner-name">—</h2>
+            <p id="winner-description">Mayor renta de localización a esta distancia</p>
+          </div>
+          <div class="summary-value">
+            <span class="value-caption">RENTA MÁXIMA</span>
+            <strong id="winner-rent">—</strong>
+            <span class="value-unit">$/ha · ingreso neto</span>
+          </div>
+          <span class="winner-color" id="winner-color" aria-hidden="true"></span>
+        </section>
+
+        <section class="rings-panel panel">
+          <div class="panel-heading compact-heading">
+            <div>
+              <p class="section-index">02 <span>/</span> ORGANIZACIÓN ESPACIAL</p>
+              <h2>Anillos de Von Thünen</h2>
+            </div>
+            <span class="distance-chip"><span class="status-dot"></span><span id="map-distance">20</span> km</span>
+          </div>
+          <div class="rings-layout">
+            <div class="ring-visual">
+              <svg id="rings-svg" viewBox="0 0 440 440" role="img" aria-labelledby="rings-title rings-desc">
+                <title id="rings-title">Anillos concéntricos de producción alrededor del mercado</title>
+                <desc id="rings-desc">La distribución de actividades cambia según sus rentas de localización.</desc>
+                <g id="ring-bands"></g>
+                <g id="ring-guides"></g>
+                <g id="ring-marker"></g>
+                <g id="market-center"></g>
+              </svg>
+            </div>
+            <div class="ring-legend">
+              <div class="legend-heading"><span>ZONAS PRODUCTIVAS</span><span>0 — <span id="legend-max-distance">80</span> km</span></div>
+              <div id="ring-legend-items"></div>
+              <div class="market-key"><span class="market-symbol" aria-hidden="true">⌂</span><span><b>Mercado central</b><small>punto de referencia</small></span></div>
+              <p class="ring-note">Los límites entre anillos se calculan donde cambia la actividad con mayor renta.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="comparison-panel panel">
+      <div class="panel-heading comparison-heading">
+        <div>
+          <p class="section-index">03 <span>/</span> COMPARACIÓN</p>
+          <h2>Funciones de renta</h2>
+        </div>
+        <span class="chart-unit">RENTA DE LOCALIZACIÓN · $/ha</span>
+      </div>
+      <div class="chart-wrap">
+        <svg id="rent-chart" viewBox="0 0 900 280" role="img" aria-labelledby="chart-title chart-desc">
+          <title id="chart-title">Curvas de renta de localización</title>
+          <desc id="chart-desc">Comparación de la renta neta de cada actividad entre cero y ochenta kilómetros.</desc>
+          <g id="chart-grid"></g>
+          <g id="chart-lines"></g>
+          <g id="chart-marker"></g>
+          <g id="chart-labels"></g>
+        </svg>
+      </div>
+      <div class="rent-table-wrap">
+        <table class="rent-table">
+          <thead><tr><th>ACTIVIDAD</th><th>INGRESO A</th><th>COSTO t EFECTIVO</th><th>DISTANCIA d</th><th>RENTA R</th><th>RESULTADO</th><th>CAMBIO VS. ORIGINAL</th></tr></thead>
+          <tbody id="rent-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="comparison-panel territory-comparison panel">
+      <div class="panel-heading comparison-heading">
+        <div>
+          <p class="section-index">04 <span>/</span> ANTES Y DESPUÉS</p>
+          <h2>¿Cómo se reorganiza el territorio?</h2>
+        </div>
+        <span class="chart-unit" id="comparison-distance">A 20 KM DEL MERCADO</span>
+      </div>
+      <div class="comparison-maps" id="comparison-maps"></div>
+      <div class="boundary-changes" id="boundary-changes"></div>
+    </section>
+
+    <section class="learning-panel panel" aria-live="polite">
+      <div class="learning-icon" aria-hidden="true">✳</div>
+      <div>
+        <p class="section-index">05 <span>/</span> LABORATORIO DE APRENDIZAJE</p>
+        <h2 id="learning-title">Lee el resultado</h2>
+        <p id="learning-copy"></p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Parámetros didácticos ilustrativos; no son observaciones de campo.</span>
+      <span>R = A − t · d <i>·</i> Los valores pueden editarse libremente.</span>
+    </footer>
+  </main>
+</body>
+</html>
